@@ -1,0 +1,187 @@
+generator client {
+  provider = "prisma-client-js"
+}
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+enum UserRole {
+  CUSTOMER
+  PROFESSIONAL
+  ADMIN
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  ASSIGNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum BookingRequestStatus {
+  NEW
+  REVIEWING
+  CONTACTED
+  ACCEPTED
+  DECLINED
+  CANCELLED
+}
+
+enum ProfessionalApplicationStatus {
+  PENDING
+  REVIEWING
+  APPROVED
+  DECLINED
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  phone        String?
+  role         UserRole @default(CUSTOMER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  bookings     Booking[] @relation("CustomerBookings")
+  assignments  Assignment[]
+  sessions     CustomerSession[]
+  bookingRequests BookingRequest[]
+  addresses    Address[]
+  professionalApplication ProfessionalApplication?
+}
+
+model CustomerSession {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+model Service {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  basePrice   Decimal  @db.Decimal(12, 2)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  bookings    Booking[]
+  bookingRequests BookingRequest[]
+}
+model Address {
+  id           String   @id @default(cuid())
+  customerId   String
+  label        String?
+  line1        String
+  city         String
+  state        String
+  country      String   @default("Nigeria")
+  instructions String?
+  createdAt    DateTime @default(now())
+  bookings     Booking[]
+  customer     User     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  bookingRequests BookingRequest[]
+
+  @@index([customerId])
+}
+model Booking {
+  id          String        @id @default(cuid())
+  sourceRequestId String?    @unique
+  customerId  String?
+  serviceId   String
+  addressId   String?
+  contactName String
+  contactPhone String
+  serviceAddress String
+  addressInstructions String?
+  scheduledAt DateTime
+  status      BookingStatus @default(PENDING)
+  notes       String?
+  totalAmount Decimal       @db.Decimal(12, 2)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  customer    User?         @relation("CustomerBookings", fields: [customerId], references: [id], onDelete: SetNull)
+  service     Service       @relation(fields: [serviceId], references: [id])
+  address     Address?      @relation(fields: [addressId], references: [id], onDelete: SetNull)
+  assignment  Assignment?
+  payments    Payment[]
+  sourceRequest BookingRequest? @relation(fields: [sourceRequestId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+  @@index([serviceId])
+  @@index([addressId])
+}
+model Assignment {
+  id             String   @id @default(cuid())
+  bookingId      String   @unique
+  professionalId String
+  assignedAt     DateTime @default(now())
+  booking        Booking  @relation(fields: [bookingId], references: [id])
+  professional   User     @relation(fields: [professionalId], references: [id])
+
+  @@index([professionalId])
+}
+model Payment {
+  id          String   @id @default(cuid())
+  bookingId   String
+  provider    String
+  providerRef String?  @unique
+  amount      Decimal  @db.Decimal(12, 2)
+  currency    String   @default("NGN")
+  status      String   @default("PENDING")
+  createdAt   DateTime @default(now())
+  booking     Booking  @relation(fields: [bookingId], references: [id])
+
+  @@index([bookingId])
+}
+
+model BookingRequest {
+  id           String   @id @default(cuid())
+  customerId   String?
+  savedAddressId String?
+  serviceId    String?
+  quotedBasePrice Decimal? @db.Decimal(12, 2)
+  service      String
+  details      String
+  preferredDate DateTime @db.Date
+  preferredTime String
+  address      String
+  contactName  String
+  phone        String
+  addressInstructions String?
+  status       BookingRequestStatus @default(NEW)
+  createdAt    DateTime @default(now())
+  customer     User?    @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  savedAddress Address? @relation(fields: [savedAddressId], references: [id], onDelete: SetNull)
+  serviceInfo  Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  booking      Booking?
+
+  @@index([customerId, createdAt])
+  @@index([savedAddressId])
+  @@index([serviceId])
+}
+
+model ProfessionalApplication {
+  id              String   @id @default(cuid())
+  userId          String?  @unique
+  firstName       String
+  lastName        String
+  email           String
+  phone           String
+  city            String
+  state           String
+  services        String[]
+  yearsExperience Int
+  about           String
+  status          ProfessionalApplicationStatus @default(PENDING)
+  createdAt       DateTime @default(now())
+  user            User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}

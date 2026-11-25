@@ -1,0 +1,1 @@
+ALTER TYPE "BookingRequestStatus" ADD VALUE 'CANCELLED';
