@@ -1,7 +1,23 @@
 @import 'tailwindcss';
 
+:root {
+  --font-ui: "Avenir Next", "Segoe UI Variable", "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  --ink: #172a24;
+  --paper: #fbfaf6;
+}
+
 html { scroll-behavior: smooth; }
-body { margin: 0; background: #fbfaf6; color: #172a24; }
+body { margin: 0; background: var(--paper); color: var(--ink); font-family: var(--font-ui); font-feature-settings: "ss01" on; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+h1, h2, .hero-title, .section-title { font-family: var(--font-display); }
+::selection { background: #cfe2d0; color: #123627; }
+:focus-visible { outline: 3px solid #6b9d7b; outline-offset: 3px; }
+
+.site-header { box-shadow: 0 8px 28px rgba(25, 50, 36, .035); }
+.booking-form-panel, .service-card, .about-card { backdrop-filter: blur(8px); }
+.booking-aside { background-image: radial-gradient(ellipse at 100% 0, rgba(82, 133, 94, .28), transparent 55%); }
+.service-card { box-shadow: 0 10px 35px rgba(35, 60, 44, .025); }
+.service-card:hover { box-shadow: 0 24px 50px rgba(35, 60, 44, .10); }
 
 .hero-wrap {
   background:
@@ -20,7 +36,7 @@ body { margin: 0; background: #fbfaf6; color: #172a24; }
 .scene-glow { position: absolute; inset: 13% 5% 5%; border-radius: 48%; background: radial-gradient(ellipse, rgba(114, 157, 117, .25), rgba(220, 220, 186, .12) 52%, transparent 72%); filter: blur(20px); }
 .home-scene { position: absolute; inset: 0; transform-style: preserve-3d; animation: home-float 7s ease-in-out infinite; }
 .scene-sun { position: absolute; top: 7%; right: 12%; width: 28%; aspect-ratio: 1; border-radius: 50%; background: linear-gradient(140deg, #f5dba0, #eabf79); opacity: .9; box-shadow: 0 0 70px rgba(233, 189, 119, .25); }
-.scene-frame { position: absolute; inset: 11% 7% 10% 9%; overflow: hidden; border: 12px solid rgba(255, 255, 255, .9); border-radius: 2.2rem; background: linear-gradient(160deg, #eee8d9 0%, #f7f2e6 58%, #e5ddcb 58.2%); box-shadow: 0 36px 70px rgba(25, 60, 42, .17), inset 0 1px 0 white; transform: rotateY(-10deg) rotateX(4deg) rotateZ(-1.3deg); transform-style: preserve-3d; }
+.scene-frame { position: absolute; inset: 11% 7% 10% 9%; overflow: hidden; border: 12px solid rgba(255, 255, 255, .9); border-radius: 2.2rem; background: linear-gradient(160deg, #eee8d9 0%, #f7f2e6 58%, #e5ddcb 58.2%); box-shadow: 0 36px 70px rgba(25, 60, 42, .17), inset 0 1px 0 white; transform: rotateY(calc(-10deg + var(--scene-tilt-y, 0deg))) rotateX(calc(4deg + var(--scene-tilt-x, 0deg))) rotateZ(-1.3deg); transform-style: preserve-3d; transition: transform .25s ease-out; }
 .scene-floor { position: absolute; right: 0; bottom: 0; left: 0; height: 29%; background: repeating-linear-gradient(176deg, transparent 0 29px, rgba(147, 124, 91, .08) 30px 31px), linear-gradient(180deg, #d9c7a9, #c9b18d); }
 .scene-window { position: absolute; top: 10%; right: 10%; display: grid; width: 34%; height: 42%; grid-template: 1fr 1fr / 1fr 1fr; gap: 6px; padding: 7px; border: 6px solid #fffaf0; border-radius: 12px; background: #fffaf0; box-shadow: 0 12px 20px rgba(61, 73, 51, .09); }
 .scene-window span { border-radius: 4px; background: linear-gradient(145deg, #c9dfce, #9ebea8); }
@@ -80,6 +96,16 @@ body { margin: 0; background: #fbfaf6; color: #172a24; }
 .booking-service-option { box-shadow: 0 3px 10px rgba(35, 60, 44, .025); }
 .booking-service-option:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(35, 60, 44, .08); }
 .booking-aside { box-shadow: 0 25px 55px rgba(12, 49, 34, .18); }
+.care-match-illustration { width: 220px; max-width: 100%; overflow: hidden; background: linear-gradient(145deg, #e7f0e4, #f7e8d1); box-shadow: 0 15px 32px rgba(9, 38, 26, .15); }
+.care-illustration-orbit { position: absolute; top: -42px; right: 18px; width: 130px; height: 130px; border: 1px solid rgba(52, 101, 69, .22); border-radius: 50%; box-shadow: 0 0 0 16px rgba(255,255,255,.22), 0 0 0 34px rgba(255,255,255,.15); }
+.care-avatar { position: absolute; top: 22px; display: grid; width: 39px; height: 39px; place-items: center; border: 3px solid rgba(255,255,255,.9); border-radius: 50%; color: white; font-size: .75rem; font-weight: 700; box-shadow: 0 5px 12px rgba(34,58,42,.16); }
+.care-avatar-one { right: 107px; background: linear-gradient(145deg, #dba87f, #b56e58); }
+.care-avatar-two { right: 75px; top: 14px; z-index: 1; background: linear-gradient(145deg, #8cad85, #4a765b); }
+.care-avatar-three { right: 43px; background: linear-gradient(145deg, #d6b16b, #a37b43); }
+.care-match-caption { width: 100%; color: #173b2b; background: rgba(255,255,255,.91); box-shadow: 0 7px 18px rgba(25,50,36,.1); backdrop-filter: blur(8px); }
+.care-match-caption small { color: #718074; }
+.care-match-check { display: grid; width: 25px; height: 25px; flex: none; place-items: center; border-radius: 50%; color: #47785b; background: #e5f2e8; font-size: .8rem; }
+.care-illustration-spark { position: absolute; top: 16px; left: 20px; color: #ad8a52; font-size: 1.1rem; }
 
 @keyframes home-float { 0%, 100% { transform: translateY(0) rotateX(0deg); } 50% { transform: translateY(-9px) rotateX(1deg); } }
 @keyframes card-drift { 0%, 100% { translate: 0 0; } 50% { translate: 0 -9px; } }

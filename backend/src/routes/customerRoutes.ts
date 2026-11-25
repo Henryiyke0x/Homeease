@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { getSessionUser } from "../services/sessionService.js";
 import { routeId } from "../utils/routeId.js";
+import { BookingLifecycleError, cancelCustomerBookingRequest } from "../services/bookingLifecycleService.js";
 
 const router = Router();
 
@@ -125,20 +126,9 @@ router.post("/api/customer/booking-requests/:id/cancel", async (req, res) => {
     const user = await getSessionUser(req);
     if (!user || user.role !== "CUSTOMER") return res.status(401).json({ error: "Sign in to cancel a request." });
 
-    const result = await prisma.bookingRequest.updateMany({
-      where: { id: routeId(req), customerId: user.id, status: { in: ["NEW", "REVIEWING", "CONTACTED"] } },
-      data: { status: "CANCELLED" },
-    });
-    if (result.count === 0) {
-      return res.status(409).json({ error: "This request can no longer be cancelled online." });
-    }
-
-    const request = await prisma.bookingRequest.findUnique({
-      where: { id: routeId(req) },
-      select: { id: true, service: true, quotedBasePrice: true, details: true, preferredDate: true, preferredTime: true, address: true, addressInstructions: true, status: true, createdAt: true },
-    });
-    return res.json(request);
+    return res.json(await cancelCustomerBookingRequest(routeId(req), user.id));
   } catch (error) {
+    if (error instanceof BookingLifecycleError) return res.status(error.statusCode).json({ error: error.message });
     console.error("Failed to cancel customer booking request", error);
     return res.status(500).json({ error: "We couldn't cancel this request. Please try again." });
   }
