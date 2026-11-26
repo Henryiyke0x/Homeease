@@ -8,10 +8,14 @@ import adminServiceRoutes from "./routes/adminServiceRoutes.js";
 import adminBookingRoutes from "./routes/adminBookingRoutes.js";
 import professionalJobRoutes from "./routes/professionalJobRoutes.js";
 import professionalApplicationRoutes from "./routes/professionalApplicationRoutes.js";
+import customerPaymentRoutes from "./routes/customerPaymentRoutes.js";
+import paystackWebhookRoutes from "./routes/paystackWebhookRoutes.js";
+import notificationRoutes from "./routes/notificationRoutes.js";
 
 const app = express();
 app.use(helmet());
 app.use(cors({ origin: process.env.FRONTEND_URL ?? "http://localhost:3000", credentials: true }));
+app.use(paystackWebhookRoutes);
 app.use(express.json());
 app.use(publicRoutes);
 app.use(authRoutes);
@@ -20,5 +24,7 @@ app.use(adminServiceRoutes);
 app.use(adminBookingRoutes);
 app.use(professionalJobRoutes);
 app.use(professionalApplicationRoutes);
+app.use(customerPaymentRoutes);
+app.use(notificationRoutes);
 
 export default app;

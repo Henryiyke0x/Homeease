@@ -2,8 +2,9 @@
 import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { getSessionUser } from "../services/sessionService.js";
+import { createNotifications } from "../services/notificationService.js";
 import { routeId } from "../utils/routeId.js";
-import { BookingLifecycleError, cancelCustomerBookingRequest } from "../services/bookingLifecycleService.js";
+import { BookingLifecycleError, cancelCustomerBooking, cancelCustomerBookingRequest, rescheduleCustomerBooking } from "../services/bookingLifecycleService.js";
 
 const router = Router();
 
@@ -11,16 +12,23 @@ const bookingRequestSchema = z.object({
   service: z.string().trim().min(2).max(80),
   details: z.string().trim().min(5).max(2000),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  time: z.enum(["Morning (8amâ€“12pm)", "Afternoon (12pmâ€“4pm)", "Evening (4pmâ€“7pm)"]),
+  time: z.enum(["MORNING", "AFTERNOON", "EVENING"]),
   address: z.string().trim().min(5).max(300),
   addressId: z.string().min(1).max(30).optional(),
   contactName: z.string().trim().min(2).max(120),
   phone: z.string().trim().min(7).max(30),
 });
 
+const bookingTimeWindowLabels = {
+  MORNING: "Morning (8am–12pm)",
+  AFTERNOON: "Afternoon (12pm–4pm)",
+  EVENING: "Evening (4pm–7pm)",
+} as const;
+
 router.post("/api/booking-requests", async (req, res) => {
   const parsed = bookingRequestSchema.safeParse(req.body);
   if (!parsed.success) {
+    console.warn("Invalid booking request fields", parsed.error.issues.map(({ path, code }) => ({ path, code })));
     return res.status(400).json({ error: "Please check the booking details and try again." });
   }
 
@@ -68,22 +76,34 @@ router.post("/api/booking-requests", async (req, res) => {
       ].filter(Boolean).join(", ");
       addressInstructions = savedAddress.instructions;
     }
-    const bookingRequest = await prisma.bookingRequest.create({
-      data: {
-        customerId: customer?.role === "CUSTOMER" ? customer.id : null,
-        savedAddressId,
-        serviceId: service.id,
-        quotedBasePrice: service.basePrice,
-        service: parsed.data.service,
-        details: parsed.data.details,
-        preferredDate,
-        preferredTime: parsed.data.time,
-        address: addressSnapshot,
-        addressInstructions,
-        contactName: parsed.data.contactName,
-        phone: parsed.data.phone,
-      },
-      select: { id: true, status: true, quotedBasePrice: true, createdAt: true },
+    const bookingRequest = await prisma.$transaction(async (transaction) => {
+      const created = await transaction.bookingRequest.create({
+        data: {
+          customerId: customer?.role === "CUSTOMER" ? customer.id : null,
+          savedAddressId,
+          serviceId: service.id,
+          quotedBasePrice: service.basePrice,
+          service: parsed.data.service,
+          details: parsed.data.details,
+          preferredDate,
+          preferredTime: bookingTimeWindowLabels[parsed.data.time],
+          address: addressSnapshot,
+          addressInstructions,
+          contactName: parsed.data.contactName,
+          phone: parsed.data.phone,
+        },
+        select: { id: true, status: true, quotedBasePrice: true, createdAt: true },
+      });
+      if (customer?.role === "CUSTOMER") {
+        await createNotifications(transaction, [{
+          userId: customer.id,
+          type: "REQUEST_RECEIVED",
+          title: "We received your service request",
+          message: `Your ${parsed.data.service} request is in the HomeEase queue. We'll update you as it's reviewed.`,
+          bookingRequestId: created.id,
+        }]);
+      }
+      return created;
     });
 
     return res.status(201).json(bookingRequest);
@@ -111,7 +131,15 @@ router.get("/api/customer/booking-requests", async (req, res) => {
         addressInstructions: true,
         status: true,
         createdAt: true,
-        booking: { select: { id: true, status: true, scheduledAt: true, totalAmount: true } },
+        booking: {
+          select: {
+            id: true,
+            status: true,
+            scheduledAt: true,
+            totalAmount: true,
+            payments: { select: { status: true }, orderBy: { createdAt: "desc" }, take: 1 },
+          },
+        },
       },
     });
     return res.json(requests);
@@ -131,6 +159,36 @@ router.post("/api/customer/booking-requests/:id/cancel", async (req, res) => {
     if (error instanceof BookingLifecycleError) return res.status(error.statusCode).json({ error: error.message });
     console.error("Failed to cancel customer booking request", error);
     return res.status(500).json({ error: "We couldn't cancel this request. Please try again." });
+  }
+});
+
+router.post("/api/customer/bookings/:id/cancel", async (req, res) => {
+  try {
+    const user = await getSessionUser(req);
+    if (!user || user.role !== "CUSTOMER") return res.status(401).json({ error: "Sign in to cancel a booking." });
+    return res.json(await cancelCustomerBooking(routeId(req), user.id));
+  } catch (error) {
+    if (error instanceof BookingLifecycleError) return res.status(error.statusCode).json({ error: error.message });
+    console.error("Failed to cancel customer booking", error);
+    return res.status(500).json({ error: "We couldn't cancel this booking. Please try again." });
+  }
+});
+
+router.patch("/api/customer/bookings/:id/reschedule", async (req, res) => {
+  const parsed = z.object({
+    date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    time: z.enum(["MORNING", "AFTERNOON", "EVENING"]),
+  }).safeParse(req.body);
+  if (!parsed.success) return res.status(400).json({ error: "Choose a valid date and time window." });
+
+  try {
+    const user = await getSessionUser(req);
+    if (!user || user.role !== "CUSTOMER") return res.status(401).json({ error: "Sign in to reschedule a booking." });
+    return res.json(await rescheduleCustomerBooking(routeId(req), user.id, parsed.data.date, parsed.data.time));
+  } catch (error) {
+    if (error instanceof BookingLifecycleError) return res.status(error.statusCode).json({ error: error.message });
+    console.error("Failed to reschedule customer booking", error);
+    return res.status(500).json({ error: "We couldn't reschedule this booking. Please try again." });
   }
 });
 

@@ -61,6 +61,7 @@ router.get("/api/admin/bookings", requireAdminKey, async (_req, res) => {
       include: {
         service: { select: { name: true } },
         assignment: { include: { professional: { select: { id: true, firstName: true, lastName: true, phone: true } } } },
+        payments: { select: { status: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 1 },
       },
     });
     return res.json(bookings);

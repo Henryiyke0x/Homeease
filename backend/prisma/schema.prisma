@@ -52,6 +52,7 @@ model User {
   bookingRequests BookingRequest[]
   addresses    Address[]
   professionalApplication ProfessionalApplication?
+  notifications Notification[]
 }
 
 model CustomerSession {
@@ -113,6 +114,7 @@ model Booking {
   address     Address?      @relation(fields: [addressId], references: [id], onDelete: SetNull)
   assignment  Assignment?
   payments    Payment[]
+  notifications Notification[]
   sourceRequest BookingRequest? @relation(fields: [sourceRequestId], references: [id], onDelete: SetNull)
 
   @@index([customerId])
@@ -134,6 +136,7 @@ model Payment {
   bookingId   String
   provider    String
   providerRef String?  @unique
+  checkoutUrl String?
   amount      Decimal  @db.Decimal(12, 2)
   currency    String   @default("NGN")
   status      String   @default("PENDING")
@@ -141,6 +144,24 @@ model Payment {
   booking     Booking  @relation(fields: [bookingId], references: [id])
 
   @@index([bookingId])
+  @@index([bookingId, status])
+}
+
+model Notification {
+  id              String   @id @default(cuid())
+  userId          String
+  bookingId       String?
+  bookingRequestId String?
+  type            String
+  title           String
+  message         String
+  readAt          DateTime?
+  createdAt       DateTime @default(now())
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  booking         Booking? @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  bookingRequest  BookingRequest? @relation(fields: [bookingRequestId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt])
 }
 
 model BookingRequest {
@@ -163,6 +184,7 @@ model BookingRequest {
   savedAddress Address? @relation(fields: [savedAddressId], references: [id], onDelete: SetNull)
   serviceInfo  Service? @relation(fields: [serviceId], references: [id], onDelete: SetNull)
   booking      Booking?
+  notifications Notification[]
 
   @@index([customerId, createdAt])
   @@index([savedAddressId])

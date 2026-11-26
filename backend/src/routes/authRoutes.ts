@@ -69,7 +69,11 @@ router.post("/api/auth/login", async (req, res) => {
 router.get("/api/auth/me", async (req, res) => {
   try {
     const user = await getSessionUser(req);
-    if (!user || user.role !== "CUSTOMER") return res.status(401).json({ error: "Sign in to view your account." });
+    if (!user || user.role === "ADMIN") return res.status(401).json({ error: "Sign in to view your account." });
+    if (user.role === "PROFESSIONAL") {
+      const application = await prisma.professionalApplication.findUnique({ where: { userId: user.id }, select: { status: true } });
+      if (application?.status !== "APPROVED") return res.status(403).json({ error: "Your professional account is not active." });
+    }
     return res.json({ user });
   } catch (error) {
     console.error("Failed to load customer session", error);
