@@ -1,5 +1,6 @@
 import HomeHero from "@/components/home-hero";
-import { AboutSection, ProcessSection, ServicesSection } from "@/components/home-content-sections";
+import { AboutSection, ProcessSection } from "@/components/home-content-sections";
+import { ServicesSection } from "@/components/services-section";
 import SiteFooter from "@/components/site-footer";
 import SiteHeader from "@/components/site-header";
 

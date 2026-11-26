@@ -2,15 +2,16 @@
 
 import SiteHeader from "@/components/site-header";
 import { AccountAuthPanel, AccountBenefits, AccountSummary, AddressBook, RequestHistory } from "@/components/account-sections";
+import { NotificationInbox } from "@/components/notification-inbox";
 import { useAccount } from "@/hooks/use-account";
 
 export default function AccountPage() {
   const account = useAccount();
   const {
-    user, requests, addresses, addressForm, form, isRegistering, isCheckingSession,
-    isSubmitting, isSavingAddress, removingAddressId, confirmCancelId, cancellingId,
+    user, requests, notifications, addresses, addressForm, form, isRegistering, isCheckingSession,
+    isSubmitting, isSavingAddress, removingAddressId, confirmCancelId, cancellingId, reschedulingId, payingId,
     error, setError, setIsRegistering, setConfirmCancelId, update, updateAddress,
-    submit, signOut, addAddress, removeAddress, cancelRequest,
+    submit, signOut, addAddress, removeAddress, cancelRequest, rescheduleBooking, startPayment, markNotificationRead,
   } = account;
 
   return (
@@ -29,10 +30,15 @@ export default function AccountPage() {
                 requests={requests}
                 confirmCancelId={confirmCancelId}
                 cancellingId={cancellingId}
+                reschedulingId={reschedulingId}
+                payingId={payingId}
                 onRequestCancel={setConfirmCancelId}
                 onConfirmCancel={(id) => void cancelRequest(id)}
+                onReschedule={rescheduleBooking}
+                onPay={(bookingId) => void startPayment(bookingId)}
                 onKeepRequest={() => setConfirmCancelId("")}
               />
+              <NotificationInbox notifications={notifications} onRead={(id) => void markNotificationRead(id)} />
               <AddressBook
                 addresses={addresses}
                 form={addressForm}

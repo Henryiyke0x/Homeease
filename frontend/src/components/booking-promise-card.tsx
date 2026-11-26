@@ -1,9 +1,6 @@
-import CareMatchIllustration from "@/components/care-match-illustration";
-
 export default function BookingPromiseCard() {
   return (
     <aside className="booking-aside h-fit rounded-3xl bg-emerald-950 p-7 text-white lg:sticky lg:top-28">
-      <CareMatchIllustration />
       <p className="text-sm font-semibold uppercase tracking-widest text-emerald-300">The HomeEase way</p>
       <h2 className="mt-4 text-2xl font-semibold">You tell us. We coordinate.</h2>
       <ul className="mt-6 space-y-5 text-sm leading-6 text-emerald-50/80">

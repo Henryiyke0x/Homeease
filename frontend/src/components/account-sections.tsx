@@ -1,5 +1,6 @@
-import type { FormEvent } from "react";
+import { type FormEvent, useState } from "react";
 import type { AccountForm, AddressForm, AccountUser, CustomerRequest, SavedAddress } from "@/types/account";
+import { bookingTimeWindowLabels, type BookingTimeWindow } from "@/types/booking";
 
 const inputClass = "mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15";
 
@@ -19,12 +20,34 @@ type RequestHistoryProps = {
   requests: CustomerRequest[];
   confirmCancelId: string;
   cancellingId: string;
+  reschedulingId: string;
+  payingId: string;
   onRequestCancel: (id: string) => void;
   onConfirmCancel: (id: string) => void;
+  onReschedule: (bookingId: string, date: string, time: BookingTimeWindow) => Promise<boolean>;
+  onPay: (bookingId: string) => void;
   onKeepRequest: () => void;
 };
 
-export function RequestHistory({ requests, confirmCancelId, cancellingId, onRequestCancel, onConfirmCancel, onKeepRequest }: RequestHistoryProps) {
+function RescheduleForm({ bookingId, isSaving, onSubmit, onClose }: { bookingId: string; isSaving: boolean; onSubmit: (bookingId: string, date: string, time: BookingTimeWindow) => Promise<boolean>; onClose: () => void }) {
+  const [date, setDate] = useState("");
+  const [time, setTime] = useState<BookingTimeWindow>("MORNING");
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (await onSubmit(bookingId, date, time)) onClose();
+  }
+
+  return <form className="mt-4 grid gap-3 rounded-2xl bg-[#f5f4ee] p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end" onSubmit={(event) => void submit(event)}>
+    <label className="block text-xs font-semibold text-stone-700">New date<input className={inputClass} type="date" min={today} required value={date} onChange={(event) => setDate(event.target.value)} /></label>
+    <label className="block text-xs font-semibold text-stone-700">Time window<select className={inputClass} value={time} onChange={(event) => setTime(event.target.value as BookingTimeWindow)}>{Object.entries(bookingTimeWindowLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+    <div className="flex gap-2"><button className="rounded-full bg-emerald-800 px-4 py-3 text-xs font-semibold text-white hover:bg-emerald-900 disabled:opacity-50" disabled={isSaving} type="submit">{isSaving ? "Saving..." : "Save time"}</button><button className="rounded-full border border-stone-300 px-4 py-3 text-xs font-semibold text-stone-600" onClick={onClose} type="button">Close</button></div>
+  </form>;
+}
+
+export function RequestHistory({ requests, confirmCancelId, cancellingId, reschedulingId, payingId, onRequestCancel, onConfirmCancel, onReschedule, onPay, onKeepRequest }: RequestHistoryProps) {
+  const [rescheduleId, setRescheduleId] = useState("");
   return (
     <section className="mt-10 border-t border-stone-200 pt-7">
       <div className="flex items-end justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-[0.15em] text-emerald-700">Your activity</p><h2 className="mt-2 text-xl font-semibold text-emerald-950">Service requests</h2></div><span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-900">{requests.length}</span></div>
@@ -37,7 +60,10 @@ export function RequestHistory({ requests, confirmCancelId, cancellingId, onRequ
               {request.booking && <p className="mt-1 text-xs text-stone-500">Booking reference: {request.booking.id}</p>}
               <p className="mt-1 text-sm text-stone-500">{request.address}</p>
               {(request.booking?.totalAmount || request.quotedBasePrice) && <p className="mt-3 text-sm font-semibold text-emerald-900">{request.booking ? "Confirmed price" : "Base price at request"}: {new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" }).format(Number(request.booking?.totalAmount ?? request.quotedBasePrice))}</p>}
+              {request.booking && ["CONFIRMED", "ASSIGNED"].includes(request.booking.status) && <div className="mt-3 flex flex-wrap items-center gap-3">{request.booking.payments.some((payment) => payment.status === "SUCCESS") ? <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-900">Paid</span> : <><span className="text-xs text-stone-500">{request.booking.payments.some((payment) => payment.status === "PENDING") ? "Payment pending" : "Payment due"}</span><button className="rounded-full bg-emerald-800 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-900 disabled:opacity-50" disabled={payingId === request.booking.id} onClick={() => onPay(request.booking!.id)} type="button">{payingId === request.booking.id ? "Opening checkout..." : "Pay now"}</button></>}</div>}
               {request.addressInstructions && <p className="mt-1 text-xs text-stone-500">Access note: {request.addressInstructions}</p>}
+              {request.booking && ["CONFIRMED", "ASSIGNED"].includes(request.booking.status) && <div className="mt-4 border-t border-stone-100 pt-3">{confirmCancelId === request.id ? <div className="flex flex-wrap items-center gap-3 text-xs"><span className="text-stone-600">Cancel this booking? Work that has started can’t be cancelled here.</span><button className="font-semibold text-red-700 hover:underline disabled:opacity-50" disabled={cancellingId === request.id} onClick={() => onConfirmCancel(request.id)} type="button">{cancellingId === request.id ? "Cancelling..." : "Yes, cancel"}</button><button className="font-semibold text-stone-600 hover:underline" onClick={onKeepRequest} type="button">Keep booking</button></div> : <div className="flex flex-wrap gap-4"><button className="text-xs font-semibold text-stone-600 hover:text-emerald-900" onClick={() => setRescheduleId((current) => current === request.booking!.id ? "" : request.booking!.id)} type="button">{rescheduleId === request.booking.id ? "Close rescheduling" : "Reschedule booking"}</button><button className="text-xs font-semibold text-stone-500 hover:text-red-700" onClick={() => onRequestCancel(request.id)} type="button">Cancel booking</button></div>}</div>}
+              {request.booking && rescheduleId === request.booking.id && ["CONFIRMED", "ASSIGNED"].includes(request.booking.status) && <RescheduleForm bookingId={request.booking.id} isSaving={reschedulingId === request.booking.id} onSubmit={onReschedule} onClose={() => setRescheduleId("")} />}
               {["NEW", "REVIEWING", "CONTACTED"].includes(request.status) && <div className="mt-4 border-t border-stone-100 pt-3">{confirmCancelId === request.id ? <div className="flex flex-wrap items-center gap-3 text-xs"><span className="text-stone-600">Cancel this request?</span><button className="font-semibold text-red-700 hover:underline disabled:opacity-50" disabled={cancellingId === request.id} onClick={() => onConfirmCancel(request.id)} type="button">{cancellingId === request.id ? "Cancelling…" : "Yes, cancel"}</button><button className="font-semibold text-stone-600 hover:underline" onClick={onKeepRequest} type="button">Keep request</button></div> : <button className="text-xs font-semibold text-stone-500 hover:text-red-700" onClick={() => onRequestCancel(request.id)} type="button">Cancel request</button>}</div>}
             </article>
           ))}

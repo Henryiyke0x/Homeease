@@ -2,7 +2,8 @@
 
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { apiRequest } from "@/lib/api";
-import type { AccountForm, AccountUser, AddressForm, CustomerRequest, SavedAddress } from "@/types/account";
+import type { AccountForm, AccountNotification, AccountUser, AddressForm, CustomerRequest, SavedAddress } from "@/types/account";
+import type { BookingTimeWindow } from "@/types/booking";
 
 const emptyForm: AccountForm = { firstName: "", lastName: "", email: "", phone: "", password: "" };
 const emptyAddress: AddressForm = { label: "", line1: "", city: "", state: "", instructions: "" };
@@ -10,6 +11,7 @@ const emptyAddress: AddressForm = { label: "", line1: "", city: "", state: "", i
 export function useAccount() {
   const [user, setUser] = useState<AccountUser | null>(null);
   const [requests, setRequests] = useState<CustomerRequest[]>([]);
+  const [notifications, setNotifications] = useState<AccountNotification[]>([]);
   const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [addressForm, setAddressForm] = useState(emptyAddress);
   const [form, setForm] = useState(emptyForm);
@@ -20,15 +22,19 @@ export function useAccount() {
   const [removingAddressId, setRemovingAddressId] = useState("");
   const [confirmCancelId, setConfirmCancelId] = useState("");
   const [cancellingId, setCancellingId] = useState("");
+  const [reschedulingId, setReschedulingId] = useState("");
+  const [payingId, setPayingId] = useState("");
   const [error, setError] = useState("");
 
   const loadCustomerData = useCallback(async () => {
-    const [customerRequests, savedAddresses] = await Promise.all([
+    const [customerRequests, savedAddresses, customerNotifications] = await Promise.all([
       apiRequest<CustomerRequest[]>("/customer/booking-requests"),
       apiRequest<SavedAddress[]>("/customer/addresses"),
+      apiRequest<AccountNotification[]>("/notifications"),
     ]);
     setRequests(customerRequests);
     setAddresses(savedAddresses);
+    setNotifications(customerNotifications);
   }, []);
 
   useEffect(() => {
@@ -81,6 +87,7 @@ export function useAccount() {
       setUser(null);
       setRequests([]);
       setAddresses([]);
+      setNotifications([]);
       setForm(emptyForm);
     } catch (signOutError) {
       setError(signOutError instanceof Error ? signOutError.message : "We couldn't sign you out.");
@@ -119,20 +126,76 @@ export function useAccount() {
     setCancellingId(id);
     setError("");
     try {
-      const updated = await apiRequest<CustomerRequest>(`/customer/booking-requests/${id}/cancel`, { method: "POST" });
-      setRequests((current) => current.map((request) => request.id === id ? updated : request));
+      const request = requests.find((item) => item.id === id);
+      if (!request) throw new Error("We couldn't find that request. Refresh and try again.");
+      if (request.booking && ["CONFIRMED", "ASSIGNED"].includes(request.booking.status)) {
+        const booking = await apiRequest<{ id: string; status: "CANCELLED" }>(`/customer/bookings/${request.booking.id}/cancel`, { method: "POST" });
+        setRequests((current) => current.map((item) => item.id === id ? { ...item, booking: item.booking ? { ...item.booking, status: booking.status } : null } : item));
+      } else {
+        const updated = await apiRequest<CustomerRequest>(`/customer/booking-requests/${id}/cancel`, { method: "POST" });
+        setRequests((current) => current.map((item) => item.id === id ? updated : item));
+      }
       setConfirmCancelId("");
     } catch (cancelError) {
       setError(cancelError instanceof Error ? cancelError.message : "We couldn't cancel this request.");
     } finally {
       setCancellingId("");
     }
+  }, [requests]);
+
+  const rescheduleBooking = useCallback(async (bookingId: string, date: string, time: BookingTimeWindow) => {
+    setReschedulingId(bookingId);
+    setError("");
+    try {
+      const updated = await apiRequest<{ id: string; status: "CONFIRMED" | "ASSIGNED"; scheduledAt: string }>(`/customer/bookings/${bookingId}/reschedule`, {
+        method: "PATCH",
+        body: JSON.stringify({ date, time }),
+      });
+      setRequests((current) => current.map((request) => request.booking?.id === bookingId
+        ? { ...request, booking: { ...request.booking, scheduledAt: updated.scheduledAt, status: updated.status } }
+        : request));
+      return true;
+    } catch (rescheduleError) {
+      setError(rescheduleError instanceof Error ? rescheduleError.message : "We couldn't reschedule this booking.");
+      return false;
+    } finally {
+      setReschedulingId("");
+    }
+  }, []);
+
+  const markNotificationRead = useCallback(async (id: string) => {
+    try {
+      const updated = await apiRequest<AccountNotification>(`/notifications/${id}/read`, { method: "PATCH" });
+      setNotifications((current) => current.map((notification) => notification.id === id ? updated : notification));
+    } catch (readError) {
+      setError(readError instanceof Error ? readError.message : "We couldn't update this notification.");
+    }
+  }, []);
+
+  const startPayment = useCallback(async (bookingId: string) => {
+    setPayingId(bookingId);
+    setError("");
+    try {
+      const result = await apiRequest<{ authorizationUrl: string | null; alreadyPaid: boolean }>(`/customer/bookings/${bookingId}/payment/initialize`, { method: "POST" });
+      if (result.alreadyPaid) {
+        setRequests((current) => current.map((request) => request.booking?.id === bookingId
+          ? { ...request, booking: { ...request.booking, payments: [{ status: "SUCCESS" }] } }
+          : request));
+      } else if (result.authorizationUrl) {
+        window.location.assign(result.authorizationUrl);
+      } else {
+        throw new Error("Checkout is temporarily unavailable. Please try again.");
+      }
+    } catch (paymentError) {
+      setError(paymentError instanceof Error ? paymentError.message : "We couldn't start checkout.");
+      setPayingId("");
+    }
   }, []);
 
   return {
-    user, requests, addresses, addressForm, form, isRegistering, isCheckingSession,
-    isSubmitting, isSavingAddress, removingAddressId, confirmCancelId, cancellingId,
+    user, requests, notifications, addresses, addressForm, form, isRegistering, isCheckingSession,
+    isSubmitting, isSavingAddress, removingAddressId, confirmCancelId, cancellingId, reschedulingId, payingId,
     error, setError, setIsRegistering, setConfirmCancelId, update, updateAddress,
-    submit, signOut, addAddress, removeAddress, cancelRequest,
+    submit, signOut, addAddress, removeAddress, cancelRequest, rescheduleBooking, startPayment, markNotificationRead,
   };
 }

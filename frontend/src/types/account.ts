@@ -18,7 +18,7 @@ export type CustomerRequest = {
   addressInstructions: string | null;
   status: "NEW" | "REVIEWING" | "CONTACTED" | "ACCEPTED" | "DECLINED" | "CANCELLED";
   createdAt: string;
-  booking: { id: string; status: string; scheduledAt: string; totalAmount: string } | null;
+  booking: { id: string; status: "CONFIRMED" | "ASSIGNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED"; scheduledAt: string; totalAmount: string; payments: { status: string }[] } | null;
 };
 
 export type SavedAddress = {
@@ -29,6 +29,17 @@ export type SavedAddress = {
   state: string;
   country: string;
   instructions: string | null;
+};
+
+export type AccountNotification = {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  bookingId: string | null;
+  bookingRequestId: string | null;
+  readAt: string | null;
+  createdAt: string;
 };
 
 export type AddressForm = { label: string; line1: string; city: string; state: string; instructions: string };

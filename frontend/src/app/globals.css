@@ -96,16 +96,6 @@ h1, h2, .hero-title, .section-title { font-family: var(--font-display); }
 .booking-service-option { box-shadow: 0 3px 10px rgba(35, 60, 44, .025); }
 .booking-service-option:hover { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(35, 60, 44, .08); }
 .booking-aside { box-shadow: 0 25px 55px rgba(12, 49, 34, .18); }
-.care-match-illustration { width: 220px; max-width: 100%; overflow: hidden; background: linear-gradient(145deg, #e7f0e4, #f7e8d1); box-shadow: 0 15px 32px rgba(9, 38, 26, .15); }
-.care-illustration-orbit { position: absolute; top: -42px; right: 18px; width: 130px; height: 130px; border: 1px solid rgba(52, 101, 69, .22); border-radius: 50%; box-shadow: 0 0 0 16px rgba(255,255,255,.22), 0 0 0 34px rgba(255,255,255,.15); }
-.care-avatar { position: absolute; top: 22px; display: grid; width: 39px; height: 39px; place-items: center; border: 3px solid rgba(255,255,255,.9); border-radius: 50%; color: white; font-size: .75rem; font-weight: 700; box-shadow: 0 5px 12px rgba(34,58,42,.16); }
-.care-avatar-one { right: 107px; background: linear-gradient(145deg, #dba87f, #b56e58); }
-.care-avatar-two { right: 75px; top: 14px; z-index: 1; background: linear-gradient(145deg, #8cad85, #4a765b); }
-.care-avatar-three { right: 43px; background: linear-gradient(145deg, #d6b16b, #a37b43); }
-.care-match-caption { width: 100%; color: #173b2b; background: rgba(255,255,255,.91); box-shadow: 0 7px 18px rgba(25,50,36,.1); backdrop-filter: blur(8px); }
-.care-match-caption small { color: #718074; }
-.care-match-check { display: grid; width: 25px; height: 25px; flex: none; place-items: center; border-radius: 50%; color: #47785b; background: #e5f2e8; font-size: .8rem; }
-.care-illustration-spark { position: absolute; top: 16px; left: 20px; color: #ad8a52; font-size: 1.1rem; }
 
 @keyframes home-float { 0%, 100% { transform: translateY(0) rotateX(0deg); } 50% { transform: translateY(-9px) rotateX(1deg); } }
 @keyframes card-drift { 0%, 100% { translate: 0 0; } 50% { translate: 0 -9px; } }

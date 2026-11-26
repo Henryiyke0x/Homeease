@@ -1,5 +1,5 @@
 import type { FormEvent } from "react";
-import type { BookingRequest, SavedAddress, Service } from "@/types/booking";
+import { bookingTimeWindowLabels, type BookingRequest, type SavedAddress, type Service } from "@/types/booking";
 
 const inputClass = "mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15";
 const money = new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" });
@@ -51,7 +51,7 @@ export default function BookingRequestForm({
           <label className="block text-sm font-medium text-stone-700" htmlFor="date">Preferred date<input className={inputClass} id="date" type="date" required value={request.date} onChange={(event) => onUpdate("date", event.target.value)} /></label>
           <label className="block text-sm font-medium text-stone-700" htmlFor="time">Preferred time
             <select className={inputClass} id="time" required value={request.time} onChange={(event) => onUpdate("time", event.target.value)}>
-              <option value="" disabled>Select a time window</option><option>Morning (8am–12pm)</option><option>Afternoon (12pm–4pm)</option><option>Evening (4pm–7pm)</option>
+              <option value="" disabled>Select a time window</option><option value="MORNING">{bookingTimeWindowLabels.MORNING}</option><option value="AFTERNOON">{bookingTimeWindowLabels.AFTERNOON}</option><option value="EVENING">{bookingTimeWindowLabels.EVENING}</option>
             </select>
           </label>
         </div>
