@@ -3,6 +3,7 @@ import { z } from "zod";
 import { prisma } from "../lib/prisma.js";
 import { getSessionUser } from "../services/sessionService.js";
 import { createNotifications } from "../services/notificationService.js";
+import { nigeriaAppointmentDateTime } from "../utils/appointmentTime.js";
 import { routeId } from "../utils/routeId.js";
 import { BookingLifecycleError, cancelCustomerBooking, cancelCustomerBookingRequest, rescheduleCustomerBooking } from "../services/bookingLifecycleService.js";
 
@@ -12,18 +13,12 @@ const bookingRequestSchema = z.object({
   service: z.string().trim().min(2).max(80),
   details: z.string().trim().min(5).max(2000),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  time: z.enum(["MORNING", "AFTERNOON", "EVENING"]),
+  time: z.string().regex(/^(?:0[8-9]|1[0-8]):00$/),
   address: z.string().trim().min(5).max(300),
   addressId: z.string().min(1).max(30).optional(),
   contactName: z.string().trim().min(2).max(120),
   phone: z.string().trim().min(7).max(30),
 });
-
-const bookingTimeWindowLabels = {
-  MORNING: "Morning (8am–12pm)",
-  AFTERNOON: "Afternoon (12pm–4pm)",
-  EVENING: "Evening (4pm–7pm)",
-} as const;
 
 router.post("/api/booking-requests", async (req, res) => {
   const parsed = bookingRequestSchema.safeParse(req.body);
@@ -32,22 +27,11 @@ router.post("/api/booking-requests", async (req, res) => {
     return res.status(400).json({ error: "Please check the booking details and try again." });
   }
 
+  const scheduledAt = nigeriaAppointmentDateTime(parsed.data.date, parsed.data.time);
+  if (!scheduledAt) return res.status(400).json({ error: "Choose a valid date and an hourly start time between 8am and 6pm." });
+  if (scheduledAt.getTime() <= Date.now()) return res.status(400).json({ error: "Choose an appointment time in the future." });
   const [year, month, day] = parsed.data.date.split("-").map(Number);
   const preferredDate = new Date(Date.UTC(year, month - 1, day));
-  const todayInNigeria = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Africa/Lagos",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
-  if (
-    preferredDate.getUTCFullYear() !== year ||
-    preferredDate.getUTCMonth() !== month - 1 ||
-    preferredDate.getUTCDate() !== day ||
-    parsed.data.date < todayInNigeria
-  ) {
-    return res.status(400).json({ error: "Choose a valid date today or later." });
-  }
 
   try {
     const customer = await getSessionUser(req);
@@ -86,7 +70,7 @@ router.post("/api/booking-requests", async (req, res) => {
           service: parsed.data.service,
           details: parsed.data.details,
           preferredDate,
-          preferredTime: bookingTimeWindowLabels[parsed.data.time],
+          preferredTime: parsed.data.time,
           address: addressSnapshot,
           addressInstructions,
           contactName: parsed.data.contactName,
@@ -138,6 +122,7 @@ router.get("/api/customer/booking-requests", async (req, res) => {
             scheduledAt: true,
             totalAmount: true,
             payments: { select: { status: true }, orderBy: { createdAt: "desc" }, take: 1 },
+            review: { select: { id: true, rating: true, comment: true, displayName: true, status: true, createdAt: true } },
           },
         },
       },
@@ -177,9 +162,9 @@ router.post("/api/customer/bookings/:id/cancel", async (req, res) => {
 router.patch("/api/customer/bookings/:id/reschedule", async (req, res) => {
   const parsed = z.object({
     date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-    time: z.enum(["MORNING", "AFTERNOON", "EVENING"]),
+    time: z.string().regex(/^(?:0[8-9]|1[0-8]):00$/),
   }).safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: "Choose a valid date and time window." });
+  if (!parsed.success) return res.status(400).json({ error: "Choose a valid date and hourly appointment time." });
 
   try {
     const user = await getSessionUser(req);

@@ -3,6 +3,7 @@ import { AboutSection, ProcessSection } from "@/components/home-content-sections
 import { ServicesSection } from "@/components/services-section";
 import SiteFooter from "@/components/site-footer";
 import SiteHeader from "@/components/site-header";
+import { ReviewsSection } from "@/components/reviews-section";
 
 export default function HomePage() {
   return (
@@ -12,6 +13,7 @@ export default function HomePage() {
       <ServicesSection />
       <ProcessSection />
       <AboutSection />
+      <ReviewsSection />
       <SiteFooter />
     </main>
   );

@@ -1,5 +1,5 @@
 import type { FormEvent } from "react";
-import { bookingTimeWindowLabels, type BookingRequest, type SavedAddress, type Service } from "@/types/booking";
+import type { BookingRequest, SavedAddress, Service } from "@/types/booking";
 
 const inputClass = "mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15";
 const money = new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" });
@@ -20,6 +20,7 @@ export default function BookingRequestForm({
   request, services, savedAddresses, catalogError, submitError, isSubmitting,
   onUpdate, onSelectAddress, onSubmit,
 }: Props) {
+  const earliestDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
   return (
     <form className="booking-form-panel mt-8 space-y-9 rounded-[2rem] p-5 sm:p-8 lg:p-9" onSubmit={onSubmit}>
       <fieldset>
@@ -48,12 +49,8 @@ export default function BookingRequestForm({
       <fieldset>
         <legend className="text-lg font-semibold text-emerald-950">3. Choose a preferred time</legend>
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <label className="block text-sm font-medium text-stone-700" htmlFor="date">Preferred date<input className={inputClass} id="date" type="date" required value={request.date} onChange={(event) => onUpdate("date", event.target.value)} /></label>
-          <label className="block text-sm font-medium text-stone-700" htmlFor="time">Preferred time
-            <select className={inputClass} id="time" required value={request.time} onChange={(event) => onUpdate("time", event.target.value)}>
-              <option value="" disabled>Select a time window</option><option value="MORNING">{bookingTimeWindowLabels.MORNING}</option><option value="AFTERNOON">{bookingTimeWindowLabels.AFTERNOON}</option><option value="EVENING">{bookingTimeWindowLabels.EVENING}</option>
-            </select>
-          </label>
+          <label className="block text-sm font-medium text-stone-700" htmlFor="date">Preferred date<input className={inputClass} id="date" type="date" min={earliestDate} required value={request.date} onChange={(event) => onUpdate("date", event.target.value)} /></label>
+          <label className="block text-sm font-medium text-stone-700" htmlFor="time">Preferred start time<input className={inputClass} id="time" type="time" min="08:00" max="18:00" step="3600" required value={request.time} onChange={(event) => onUpdate("time", event.target.value)} /><span className="mt-1 block text-xs font-normal text-stone-500">Hourly starts from 8am to 6pm, Lagos time.</span></label>
         </div>
       </fieldset>
 

@@ -1,5 +1,8 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma.js";
 import { createNotifications } from "./notificationService.js";
+import { nigeriaAppointmentDateTime } from "../utils/appointmentTime.js";
+import { getLagosAppointmentSlot } from "../utils/professionalAvailability.js";
 
 export class BookingLifecycleError extends Error {
   constructor(
@@ -18,6 +21,28 @@ const bookingWithAssignment = {
     include: { professional: { select: { id: true, firstName: true, lastName: true, phone: true } } },
   },
 } as const;
+
+async function assertProfessionalCanTakeSlot(transaction: Prisma.TransactionClient, professionalId: string, bookingId: string, scheduledAt: Date) {
+  await transaction.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${professionalId} FOR UPDATE`;
+  const slot = getLagosAppointmentSlot(scheduledAt);
+  if (!slot) throw new BookingLifecycleError("Choose a valid appointment time.", 400);
+  const schedule = await transaction.professionalAvailability.findUnique({
+    where: { professionalId_dayOfWeek: { professionalId, dayOfWeek: slot.dayOfWeek } },
+    select: { availableTimes: true },
+  });
+  if (!schedule?.availableTimes.includes(slot.time)) {
+    throw new BookingLifecycleError("This professional is not available at the selected Lagos appointment time.", 409);
+  }
+  const existingAssignment = await transaction.assignment.findFirst({
+    where: {
+      professionalId,
+      bookingId: { not: bookingId },
+      booking: { scheduledAt, status: { in: ["ASSIGNED", "IN_PROGRESS"] } },
+    },
+    select: { id: true },
+  });
+  if (existingAssignment) throw new BookingLifecycleError("This professional already has a job at that appointment time.", 409);
+}
 
 export async function confirmBookingRequest(requestId: string) {
   const request = await prisma.bookingRequest.findUnique({
@@ -47,8 +72,12 @@ export async function confirmBookingRequest(requestId: string) {
     "Afternoon (12pm–4pm)": 12,
     "Evening (4pm–7pm)": 16,
   };
-  const schedule = new Date(request.preferredDate);
-  schedule.setUTCHours((startHours[request.preferredTime] ?? 8) - 1, 0, 0, 0);
+  const exactSchedule = nigeriaAppointmentDateTime(request.preferredDate.toISOString().slice(0, 10), request.preferredTime);
+  const schedule = exactSchedule ?? new Date(request.preferredDate);
+  if (!exactSchedule) schedule.setUTCHours((startHours[request.preferredTime] ?? 8) - 1, 0, 0, 0);
+  if (schedule.getTime() <= Date.now()) {
+    throw new BookingLifecycleError("The requested appointment time has passed. Contact the customer before confirming.", 409);
+  }
 
   await prisma.$transaction(async (transaction) => {
     const booking = await transaction.booking.create({
@@ -73,7 +102,7 @@ export async function confirmBookingRequest(requestId: string) {
         userId: request.customerId,
         type: "BOOKING_CONFIRMED",
         title: "Your booking is confirmed",
-        message: `${request.service} is confirmed for ${request.preferredDate.toLocaleDateString()}. Payment is now due.`,
+        message: `${request.service} is confirmed for ${request.preferredDate.toLocaleDateString()} at ${request.preferredTime} Lagos time. Payment is now due.`,
         bookingId: booking.id,
         bookingRequestId: request.id,
       }]);
@@ -157,21 +186,11 @@ export async function cancelCustomerBooking(bookingId: string, customerId: strin
   return prisma.booking.findUnique({ where: { id: bookingId }, select: { id: true, status: true } });
 }
 
-export async function rescheduleCustomerBooking(bookingId: string, customerId: string, date: string, time: "MORNING" | "AFTERNOON" | "EVENING") {
-  const [year, month, day] = date.split("-").map(Number);
-  const requestedDate = new Date(Date.UTC(year, month - 1, day));
-  if (
-    requestedDate.getUTCFullYear() !== year ||
-    requestedDate.getUTCMonth() !== month - 1 ||
-    requestedDate.getUTCDate() !== day
-  ) {
-    throw new BookingLifecycleError("Choose a valid date.", 400);
-  }
-
-  const startHours = { MORNING: 8, AFTERNOON: 12, EVENING: 16 };
-  const scheduledAt = new Date(Date.UTC(year, month - 1, day, startHours[time] - 1));
+export async function rescheduleCustomerBooking(bookingId: string, customerId: string, date: string, time: string) {
+  const scheduledAt = nigeriaAppointmentDateTime(date, time);
+  if (!scheduledAt) throw new BookingLifecycleError("Choose a valid date and an hourly start time between 8am and 6pm.", 400);
   if (scheduledAt.getTime() <= Date.now()) {
-    throw new BookingLifecycleError("Choose a future time window.", 400);
+    throw new BookingLifecycleError("Choose an appointment time in the future.", 400);
   }
 
   const updated = await prisma.$transaction(async (transaction) => {
@@ -180,16 +199,16 @@ export async function rescheduleCustomerBooking(bookingId: string, customerId: s
       select: { service: { select: { name: true } }, assignment: { select: { professionalId: true } } },
     });
     if (!booking) return 0;
+    if (booking.assignment) await assertProfessionalCanTakeSlot(transaction, booking.assignment.professionalId, bookingId, scheduledAt);
     const result = await transaction.booking.updateMany({
       where: { id: bookingId, customerId, status: { in: ["CONFIRMED", "ASSIGNED"] } },
       data: { scheduledAt },
     });
     if (result.count) {
-      const timeLabel = { MORNING: "morning", AFTERNOON: "afternoon", EVENING: "evening" }[time];
-      const message = `${booking.service.name} has been moved to ${date} in the ${timeLabel} window.`;
+      const message = `${booking.service.name} has been moved to ${date} at ${time} Lagos time.`;
       await createNotifications(transaction, [
         { userId: customerId, type: "BOOKING_RESCHEDULED", title: "Booking rescheduled", message, bookingId },
-        ...(booking.assignment ? [{ userId: booking.assignment.professionalId, type: "BOOKING_RESCHEDULED", title: "Booking schedule changed", message: `The assigned ${booking.service.name} booking has been rescheduled to ${date} (${timeLabel}).`, bookingId }] : []),
+        ...(booking.assignment ? [{ userId: booking.assignment.professionalId, type: "BOOKING_RESCHEDULED", title: "Booking schedule changed", message, bookingId }] : []),
       ]);
     }
     return result.count;
@@ -203,7 +222,7 @@ export async function rescheduleCustomerBooking(bookingId: string, customerId: s
 export async function assignBooking(bookingId: string, professionalId: string) {
   const booking = await prisma.booking.findUnique({
     where: { id: bookingId },
-    select: { status: true, customerId: true, service: { select: { name: true } } },
+    select: { status: true, customerId: true, scheduledAt: true, service: { select: { name: true } } },
   });
   if (!booking) throw new BookingLifecycleError("Booking not found.", 404);
   if (booking.status !== "CONFIRMED" && booking.status !== "ASSIGNED") {
@@ -222,6 +241,7 @@ export async function assignBooking(bookingId: string, professionalId: string) {
   }
 
   return prisma.$transaction(async (transaction) => {
+    await assertProfessionalCanTakeSlot(transaction, professional.userId!, bookingId, booking.scheduledAt);
     const changed = await transaction.booking.updateMany({
       where: { id: bookingId, status: { in: ["CONFIRMED", "ASSIGNED"] } },
       data: { status: "ASSIGNED" },

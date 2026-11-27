@@ -18,8 +18,10 @@ export type CustomerRequest = {
   addressInstructions: string | null;
   status: "NEW" | "REVIEWING" | "CONTACTED" | "ACCEPTED" | "DECLINED" | "CANCELLED";
   createdAt: string;
-  booking: { id: string; status: "CONFIRMED" | "ASSIGNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED"; scheduledAt: string; totalAmount: string; payments: { status: string }[] } | null;
+  booking: { id: string; status: "CONFIRMED" | "ASSIGNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED"; scheduledAt: string; totalAmount: string; payments: { status: string }[]; review: CustomerReview | null } | null;
 };
+
+export type CustomerReview = { id: string; rating: number; comment: string; displayName: string; status: string; createdAt: string };
 
 export type SavedAddress = {
   id: string;

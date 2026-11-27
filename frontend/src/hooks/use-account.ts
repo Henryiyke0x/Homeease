@@ -2,8 +2,8 @@
 
 import { type FormEvent, useCallback, useEffect, useState } from "react";
 import { apiRequest } from "@/lib/api";
-import type { AccountForm, AccountNotification, AccountUser, AddressForm, CustomerRequest, SavedAddress } from "@/types/account";
-import type { BookingTimeWindow } from "@/types/booking";
+import type { AccountForm, AccountNotification, AccountUser, AddressForm, CustomerRequest, CustomerReview, SavedAddress } from "@/types/account";
+import type { AppointmentTime } from "@/types/booking";
 
 const emptyForm: AccountForm = { firstName: "", lastName: "", email: "", phone: "", password: "" };
 const emptyAddress: AddressForm = { label: "", line1: "", city: "", state: "", instructions: "" };
@@ -24,6 +24,7 @@ export function useAccount() {
   const [cancellingId, setCancellingId] = useState("");
   const [reschedulingId, setReschedulingId] = useState("");
   const [payingId, setPayingId] = useState("");
+  const [reviewingId, setReviewingId] = useState("");
   const [error, setError] = useState("");
 
   const loadCustomerData = useCallback(async () => {
@@ -143,7 +144,7 @@ export function useAccount() {
     }
   }, [requests]);
 
-  const rescheduleBooking = useCallback(async (bookingId: string, date: string, time: BookingTimeWindow) => {
+  const rescheduleBooking = useCallback(async (bookingId: string, date: string, time: AppointmentTime) => {
     setReschedulingId(bookingId);
     setError("");
     try {
@@ -192,10 +193,27 @@ export function useAccount() {
     }
   }, []);
 
+  const submitReview = useCallback(async (bookingId: string, rating: number, comment: string, displayName: string) => {
+    setReviewingId(bookingId);
+    setError("");
+    try {
+      const review = await apiRequest<CustomerReview>(`/customer/bookings/${bookingId}/reviews`, {
+        method: "POST", body: JSON.stringify({ rating, comment, displayName }),
+      });
+      setRequests((current) => current.map((request) => request.booking?.id === bookingId
+        ? { ...request, booking: { ...request.booking, review } }
+        : request));
+    } catch (reviewError) {
+      setError(reviewError instanceof Error ? reviewError.message : "We couldn't submit your review.");
+    } finally {
+      setReviewingId("");
+    }
+  }, []);
+
   return {
     user, requests, notifications, addresses, addressForm, form, isRegistering, isCheckingSession,
-    isSubmitting, isSavingAddress, removingAddressId, confirmCancelId, cancellingId, reschedulingId, payingId,
+    isSubmitting, isSavingAddress, removingAddressId, confirmCancelId, cancellingId, reschedulingId, payingId, reviewingId,
     error, setError, setIsRegistering, setConfirmCancelId, update, updateAddress,
-    submit, signOut, addAddress, removeAddress, cancelRequest, rescheduleBooking, startPayment, markNotificationRead,
+    submit, signOut, addAddress, removeAddress, cancelRequest, rescheduleBooking, startPayment, submitReview, markNotificationRead,
   };
 }

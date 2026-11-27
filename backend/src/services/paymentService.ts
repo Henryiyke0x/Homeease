@@ -57,6 +57,11 @@ export async function initializeBookingPayment(bookingId: string, customerId: st
   if (!booking || booking.customerId !== customerId || !booking.customer) {
     throw new PaymentServiceError("Booking not found.", 404);
   }
+  const refundInProgressOrComplete = await prisma.payment.findFirst({
+    where: { bookingId, provider: "paystack", status: { in: ["REFUND_PENDING", "PARTIALLY_REFUNDED", "REFUNDED"] } },
+    select: { id: true },
+  });
+  if (refundInProgressOrComplete) throw new PaymentServiceError("Checkout is unavailable while a refund is pending or has been issued.", 409);
   if (!["CONFIRMED", "ASSIGNED"].includes(booking.status)) {
     throw new PaymentServiceError("Only confirmed bookings can be paid online.", 409);
   }
@@ -123,7 +128,9 @@ async function getVerifiedTransaction(reference: string) {
 async function reconcileTransaction(reference: string) {
   const payment = await prisma.payment.findFirst({ where: { provider: "paystack", providerRef: reference } });
   if (!payment) throw new PaymentServiceError("Payment reference not found.", 404);
-  if (payment.status === "SUCCESS") return { paymentStatus: "SUCCESS" as const, bookingId: payment.bookingId };
+  if (["SUCCESS", "REFUND_PENDING", "PARTIALLY_REFUNDED", "REFUNDED"].includes(payment.status)) {
+    return { paymentStatus: payment.status, bookingId: payment.bookingId };
+  }
 
   const transaction = await getVerifiedTransaction(reference);
   if (transaction.reference !== reference) throw new PaymentServiceError("Paystack returned a mismatched payment reference.", 502);

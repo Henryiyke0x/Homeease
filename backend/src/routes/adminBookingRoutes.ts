@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma.js";
 import { requireAdminKey } from "../middleware/adminAuth.js";
 import { routeId } from "../utils/routeId.js";
 import { assignBooking, BookingLifecycleError, cancelBooking, confirmBookingRequest, updateBookingRequestStatus } from "../services/bookingLifecycleService.js";
+import { getLagosAppointmentSlot } from "../utils/professionalAvailability.js";
 
 const router = Router();
 
@@ -61,7 +62,7 @@ router.get("/api/admin/bookings", requireAdminKey, async (_req, res) => {
       include: {
         service: { select: { name: true } },
         assignment: { include: { professional: { select: { id: true, firstName: true, lastName: true, phone: true } } } },
-        payments: { select: { status: true, createdAt: true }, orderBy: { createdAt: "desc" }, take: 1 },
+        payments: { orderBy: { createdAt: "desc" }, take: 1, select: { id: true, amount: true, status: true, createdAt: true, refunds: { select: { id: true, amount: true, currency: true, status: true, createdAt: true }, orderBy: { createdAt: "desc" } } } },
       },
     });
     return res.json(bookings);
@@ -73,8 +74,12 @@ router.get("/api/admin/bookings", requireAdminKey, async (_req, res) => {
 
 router.get("/api/admin/available-professionals", requireAdminKey, async (_req, res) => {
   try {
+    const bookingId = typeof _req.query.bookingId === "string" ? _req.query.bookingId : undefined;
+    const targetBooking = bookingId ? await prisma.booking.findUnique({ where: { id: bookingId }, select: { id: true, scheduledAt: true, service: { select: { name: true } } } }) : null;
+    if (bookingId && !targetBooking) return res.status(404).json({ error: "Booking not found." });
+    const slot = targetBooking ? getLagosAppointmentSlot(targetBooking.scheduledAt) : null;
     const professionals = await prisma.professionalApplication.findMany({
-      where: { status: "APPROVED", userId: { not: null } },
+      where: { status: "APPROVED", userId: { not: null }, ...(targetBooking ? { services: { has: targetBooking.service.name } } : {}) },
       select: {
         user: { select: { id: true, firstName: true, lastName: true, phone: true } },
         city: true,
@@ -83,7 +88,18 @@ router.get("/api/admin/available-professionals", requireAdminKey, async (_req, r
       },
       orderBy: { createdAt: "asc" },
     });
-    return res.json(professionals.filter((item) => item.user).map((item) => ({ ...item.user!, city: item.city, state: item.state, services: item.services })));
+    let available = professionals.filter((item) => item.user).map((item) => ({ ...item.user!, city: item.city, state: item.state, services: item.services }));
+    if (targetBooking && slot) {
+      const professionalIds = available.map((item) => item.id);
+      const [schedules, occupied] = await Promise.all([
+        prisma.professionalAvailability.findMany({ where: { professionalId: { in: professionalIds }, dayOfWeek: slot.dayOfWeek, availableTimes: { has: slot.time } }, select: { professionalId: true } }),
+        prisma.assignment.findMany({ where: { professionalId: { in: professionalIds }, bookingId: { not: targetBooking.id }, booking: { scheduledAt: targetBooking.scheduledAt, status: { in: ["ASSIGNED", "IN_PROGRESS"] } } }, select: { professionalId: true } }),
+      ]);
+      const scheduleIds = new Set(schedules.map((item) => item.professionalId));
+      const occupiedIds = new Set(occupied.map((item) => item.professionalId));
+      available = available.filter((item) => scheduleIds.has(item.id) && !occupiedIds.has(item.id));
+    }
+    return res.json(available);
   } catch (error) {
     console.error("Failed to load approved professionals", error);
     return res.status(500).json({ error: "We couldn't load approved professionals." });

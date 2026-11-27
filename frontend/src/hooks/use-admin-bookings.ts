@@ -7,8 +7,9 @@ import type { Booking, Professional } from "@/types/admin-booking";
 export function useAdminBookings() {
   const [adminKey, setAdminKey] = useState("");
   const [bookings, setBookings] = useState<Booking[]>([]);
-  const [professionals, setProfessionals] = useState<Professional[]>([]);
+  const [professionalsByBooking, setProfessionalsByBooking] = useState<Record<string, Professional[]>>({});
   const [selectedProfessional, setSelectedProfessional] = useState<Record<string, string>>({});
+  const [refundAmounts, setRefundAmounts] = useState<Record<string, string>>({});
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [workingId, setWorkingId] = useState("");
@@ -19,12 +20,14 @@ export function useAdminBookings() {
     setError("");
     try {
       const headers = { headers: { "x-admin-key": adminKey } };
-      const [bookingList, professionalList] = await Promise.all([
-        apiRequest<Booking[]>("/admin/bookings", headers),
-        apiRequest<Professional[]>("/admin/available-professionals", headers),
-      ]);
+      const bookingList = await apiRequest<Booking[]>("/admin/bookings", headers);
+      const professionalEntries = await Promise.all(bookingList.map(async (booking) => {
+        if (!["CONFIRMED", "ASSIGNED"].includes(booking.status)) return [booking.id, []] as const;
+        const professionals = await apiRequest<Professional[]>(`/admin/available-professionals?bookingId=${encodeURIComponent(booking.id)}`, headers);
+        return [booking.id, professionals] as const;
+      }));
       setBookings(bookingList);
-      setProfessionals(professionalList);
+      setProfessionalsByBooking(Object.fromEntries(professionalEntries));
       setSelectedProfessional(Object.fromEntries(bookingList.map((booking) => [booking.id, booking.assignment?.professional.id ?? ""])));
       setIsAuthorized(true);
     } catch (loadError) {
@@ -69,10 +72,31 @@ export function useAdminBookings() {
     }
   }, [adminKey]);
 
+  const refund = useCallback(async (bookingId: string) => {
+    const amount = refundAmounts[bookingId]?.trim();
+    const detail = amount ? `NGN ${amount}` : "the remaining refundable balance";
+    if (!window.confirm(`Request a Paystack refund of ${detail} for this booking? This will send a real refund request.`)) return;
+    setWorkingId(bookingId);
+    setError("");
+    try {
+      await apiRequest(`/admin/bookings/${bookingId}/refunds`, {
+        method: "POST",
+        headers: { "x-admin-key": adminKey },
+        body: JSON.stringify(amount ? { amount } : {}),
+      });
+      setRefundAmounts((current) => ({ ...current, [bookingId]: "" }));
+      await loadData();
+    } catch (refundError) {
+      setError(refundError instanceof Error ? refundError.message : "Unable to initiate this refund.");
+    } finally {
+      setWorkingId("");
+    }
+  }, [adminKey, loadData, refundAmounts]);
+
   const signOut = useCallback(() => {
     setAdminKey("");
     setBookings([]);
-    setProfessionals([]);
+    setProfessionalsByBooking({});
     setIsAuthorized(false);
   }, []);
 
@@ -80,5 +104,9 @@ export function useAdminBookings() {
     setSelectedProfessional((current) => ({ ...current, [bookingId]: professionalId }));
   }, []);
 
-  return { adminKey, setAdminKey, bookings, professionals, selectedProfessional, isAuthorized, isLoading, workingId, error, loadData, signIn, assign, cancel, signOut, selectProfessional };
+  const setRefundAmount = useCallback((bookingId: string, amount: string) => {
+    setRefundAmounts((current) => ({ ...current, [bookingId]: amount }));
+  }, []);
+
+  return { adminKey, setAdminKey, bookings, professionalsByBooking, selectedProfessional, refundAmounts, isAuthorized, isLoading, workingId, error, loadData, signIn, assign, cancel, refund, signOut, selectProfessional, setRefundAmount };
 }

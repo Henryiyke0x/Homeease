@@ -11,6 +11,12 @@ export type Booking = {
   serviceAddress: string;
   addressInstructions: string | null;
   service: { name: string };
-  payments: { status: string; createdAt: string }[];
+  payments: {
+    id: string;
+    amount: string;
+    status: string;
+    createdAt: string;
+    refunds: { id: string; amount: string; currency: string; status: string; createdAt: string }[];
+  }[];
   assignment: { professional: { id: string; firstName: string; lastName: string; phone: string | null } } | null;
 };

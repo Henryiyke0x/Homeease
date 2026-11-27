@@ -1,5 +1,6 @@
 import { Router, raw } from "express";
 import { processPaystackWebhook, verifyPaystackWebhookSignature } from "../services/paymentService.js";
+import { processPaystackRefundWebhook } from "../services/refundService.js";
 
 const router = Router();
 
@@ -12,6 +13,7 @@ router.post("/api/payments/webhook", raw({ type: "application/json", limit: "256
   try {
     const event: unknown = JSON.parse(req.body.toString("utf8"));
     await processPaystackWebhook(event);
+    await processPaystackRefundWebhook(event);
     return res.sendStatus(200);
   } catch (error) {
     console.error("Failed to process Paystack webhook", error);

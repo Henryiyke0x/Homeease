@@ -15,11 +15,13 @@ A managed home-services platform connecting customers with trusted professionals
 4. Customer booking history and status.
 5. Professional application and job dashboard.
 6. Admin management of services, users and bookings.
-7. Payment integration (Paystack planned).
+7. Payment integration (Paystack).
 8. Booking notifications.
+9. Verified-customer reviews with admin moderation.
+10. Professional weekly availability and schedule-aware assignment.
 
 ## Later enhancements
-Real-time updates, subscriptions, smart matching, reviews, disputes, analytics, referrals and AI booking assistance.
+Real-time updates, subscriptions, smart matching, disputes, analytics, referrals and AI booking assistance.
 
 ## Booking lifecycle
 PENDING → CONFIRMED → ASSIGNED → IN_PROGRESS → COMPLETED. A booking may also be CANCELLED under platform policy.

@@ -11,6 +11,10 @@ import professionalApplicationRoutes from "./routes/professionalApplicationRoute
 import customerPaymentRoutes from "./routes/customerPaymentRoutes.js";
 import paystackWebhookRoutes from "./routes/paystackWebhookRoutes.js";
 import notificationRoutes from "./routes/notificationRoutes.js";
+import adminRefundRoutes from "./routes/adminRefundRoutes.js";
+import reviewRoutes from "./routes/reviewRoutes.js";
+import adminReviewRoutes from "./routes/adminReviewRoutes.js";
+import professionalAvailabilityRoutes from "./routes/professionalAvailabilityRoutes.js";
 
 const app = express();
 app.use(helmet());
@@ -22,6 +26,10 @@ app.use(authRoutes);
 app.use(customerRoutes);
 app.use(adminServiceRoutes);
 app.use(adminBookingRoutes);
+app.use(adminRefundRoutes);
+app.use(reviewRoutes);
+app.use(adminReviewRoutes);
+app.use(professionalAvailabilityRoutes);
 app.use(professionalJobRoutes);
 app.use(professionalApplicationRoutes);
 app.use(customerPaymentRoutes);

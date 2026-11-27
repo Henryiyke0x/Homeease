@@ -1,6 +1,6 @@
 import { type FormEvent, useState } from "react";
-import type { AccountForm, AddressForm, AccountUser, CustomerRequest, SavedAddress } from "@/types/account";
-import { bookingTimeWindowLabels, type BookingTimeWindow } from "@/types/booking";
+import type { AccountForm, AddressForm, AccountUser, CustomerRequest, CustomerReview, SavedAddress } from "@/types/account";
+import type { AppointmentTime } from "@/types/booking";
 
 const inputClass = "mt-2 w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm text-stone-900 outline-none transition placeholder:text-stone-400 focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/15";
 
@@ -22,16 +22,18 @@ type RequestHistoryProps = {
   cancellingId: string;
   reschedulingId: string;
   payingId: string;
+  reviewingId: string;
   onRequestCancel: (id: string) => void;
   onConfirmCancel: (id: string) => void;
-  onReschedule: (bookingId: string, date: string, time: BookingTimeWindow) => Promise<boolean>;
+  onReschedule: (bookingId: string, date: string, time: AppointmentTime) => Promise<boolean>;
   onPay: (bookingId: string) => void;
+  onSubmitReview: (bookingId: string, rating: number, comment: string, displayName: string) => void;
   onKeepRequest: () => void;
 };
 
-function RescheduleForm({ bookingId, isSaving, onSubmit, onClose }: { bookingId: string; isSaving: boolean; onSubmit: (bookingId: string, date: string, time: BookingTimeWindow) => Promise<boolean>; onClose: () => void }) {
+function RescheduleForm({ bookingId, isSaving, onSubmit, onClose }: { bookingId: string; isSaving: boolean; onSubmit: (bookingId: string, date: string, time: AppointmentTime) => Promise<boolean>; onClose: () => void }) {
   const [date, setDate] = useState("");
-  const [time, setTime] = useState<BookingTimeWindow>("MORNING");
+  const [time, setTime] = useState<AppointmentTime>("08:00");
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Lagos", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -41,12 +43,28 @@ function RescheduleForm({ bookingId, isSaving, onSubmit, onClose }: { bookingId:
 
   return <form className="mt-4 grid gap-3 rounded-2xl bg-[#f5f4ee] p-4 sm:grid-cols-[1fr_1fr_auto] sm:items-end" onSubmit={(event) => void submit(event)}>
     <label className="block text-xs font-semibold text-stone-700">New date<input className={inputClass} type="date" min={today} required value={date} onChange={(event) => setDate(event.target.value)} /></label>
-    <label className="block text-xs font-semibold text-stone-700">Time window<select className={inputClass} value={time} onChange={(event) => setTime(event.target.value as BookingTimeWindow)}>{Object.entries(bookingTimeWindowLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
+    <label className="block text-xs font-semibold text-stone-700">Start time<input className={inputClass} type="time" min="08:00" max="18:00" step="3600" required value={time} onChange={(event) => setTime(event.target.value)} /><span className="mt-1 block font-normal text-stone-500">Hourly slots, Lagos time.</span></label>
     <div className="flex gap-2"><button className="rounded-full bg-emerald-800 px-4 py-3 text-xs font-semibold text-white hover:bg-emerald-900 disabled:opacity-50" disabled={isSaving} type="submit">{isSaving ? "Saving..." : "Save time"}</button><button className="rounded-full border border-stone-300 px-4 py-3 text-xs font-semibold text-stone-600" onClick={onClose} type="button">Close</button></div>
   </form>;
 }
 
-export function RequestHistory({ requests, confirmCancelId, cancellingId, reschedulingId, payingId, onRequestCancel, onConfirmCancel, onReschedule, onPay, onKeepRequest }: RequestHistoryProps) {
+function ReviewForm({ bookingId, isSaving, onSubmit }: { bookingId: string; isSaving: boolean; onSubmit: (bookingId: string, rating: number, comment: string, displayName: string) => void }) {
+  const [rating, setRating] = useState("5");
+  const [comment, setComment] = useState("");
+  const [displayName, setDisplayName] = useState("");
+  return <form className="mt-4 rounded-2xl bg-[#f5f4ee] p-4" onSubmit={(event) => { event.preventDefault(); onSubmit(bookingId, Number(rating), comment, displayName); }}>
+    <h4 className="font-semibold text-emerald-950">How did it go?</h4>
+    <div className="mt-3 grid gap-3 sm:grid-cols-2">
+      <label className="block text-xs font-semibold text-stone-700">Rating<select className={inputClass} value={rating} onChange={(event) => setRating(event.target.value)}><option value="5">5 stars — Excellent</option><option value="4">4 stars — Good</option><option value="3">3 stars — Okay</option><option value="2">2 stars — Poor</option><option value="1">1 star — Bad</option></select></label>
+      <label className="block text-xs font-semibold text-stone-700">Name shown publicly<input className={inputClass} minLength={2} maxLength={80} required value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="Your name or initials" /></label>
+    </div>
+    <label className="mt-3 block text-xs font-semibold text-stone-700">Your review<textarea className={`${inputClass} min-h-24 resize-y`} minLength={10} maxLength={1000} required value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Share a little about your experience" /></label>
+    <p className="mt-2 text-xs leading-5 text-stone-500">Reviews are checked by HomeEase before they appear publicly.</p>
+    <button className="mt-3 rounded-full bg-emerald-800 px-5 py-3 text-xs font-semibold text-white hover:bg-emerald-900 disabled:opacity-50" disabled={isSaving} type="submit">{isSaving ? "Submitting…" : "Submit review"}</button>
+  </form>;
+}
+
+export function RequestHistory({ requests, confirmCancelId, cancellingId, reschedulingId, payingId, reviewingId, onRequestCancel, onConfirmCancel, onReschedule, onPay, onSubmitReview, onKeepRequest }: RequestHistoryProps) {
   const [rescheduleId, setRescheduleId] = useState("");
   return (
     <section className="mt-10 border-t border-stone-200 pt-7">
@@ -56,14 +74,15 @@ export function RequestHistory({ requests, confirmCancelId, cancellingId, resche
           {requests.map((request) => (
             <article key={request.id} className="rounded-2xl border border-stone-200 bg-white p-5">
               <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-semibold text-emerald-950">{request.service}</h3><p className="mt-1 text-xs text-stone-500">{new Date(request.createdAt).toLocaleDateString()} · Ref {request.id}</p></div><span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-900">{(request.booking?.status ?? request.status).replaceAll("_", " ")}</span></div>
-              <p className="mt-4 text-sm text-stone-700">{new Date(request.booking?.scheduledAt ?? `${request.preferredDate.slice(0, 10)}T00:00:00`).toLocaleString()}</p>
+              <p className="mt-4 text-sm text-stone-700">{request.booking ? new Intl.DateTimeFormat("en-NG", { timeZone: "Africa/Lagos", dateStyle: "medium", timeStyle: "short" }).format(new Date(request.booking.scheduledAt)) : `${request.preferredDate.slice(0, 10)} at ${request.preferredTime} Lagos time`}</p>
               {request.booking && <p className="mt-1 text-xs text-stone-500">Booking reference: {request.booking.id}</p>}
               <p className="mt-1 text-sm text-stone-500">{request.address}</p>
               {(request.booking?.totalAmount || request.quotedBasePrice) && <p className="mt-3 text-sm font-semibold text-emerald-900">{request.booking ? "Confirmed price" : "Base price at request"}: {new Intl.NumberFormat("en-NG", { style: "currency", currency: "NGN" }).format(Number(request.booking?.totalAmount ?? request.quotedBasePrice))}</p>}
-              {request.booking && ["CONFIRMED", "ASSIGNED"].includes(request.booking.status) && <div className="mt-3 flex flex-wrap items-center gap-3">{request.booking.payments.some((payment) => payment.status === "SUCCESS") ? <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-900">Paid</span> : <><span className="text-xs text-stone-500">{request.booking.payments.some((payment) => payment.status === "PENDING") ? "Payment pending" : "Payment due"}</span><button className="rounded-full bg-emerald-800 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-900 disabled:opacity-50" disabled={payingId === request.booking.id} onClick={() => onPay(request.booking!.id)} type="button">{payingId === request.booking.id ? "Opening checkout..." : "Pay now"}</button></>}</div>}
+              {request.booking && ["CONFIRMED", "ASSIGNED"].includes(request.booking.status) && <div className="mt-3 flex flex-wrap items-center gap-3">{request.booking.payments.some((payment) => payment.status === "SUCCESS") ? <span className="rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-900">Paid</span> : request.booking.payments.some((payment) => ["REFUND_PENDING", "PARTIALLY_REFUNDED", "REFUNDED"].includes(payment.status)) ? <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-900">{request.booking.payments[0].status.replaceAll("_", " ").toLowerCase()}</span> : <><span className="text-xs text-stone-500">{request.booking.payments.some((payment) => payment.status === "PENDING") ? "Payment pending" : "Payment due"}</span><button className="rounded-full bg-emerald-800 px-4 py-2 text-xs font-semibold text-white hover:bg-emerald-900 disabled:opacity-50" disabled={payingId === request.booking.id} onClick={() => onPay(request.booking!.id)} type="button">{payingId === request.booking.id ? "Opening checkout..." : "Pay now"}</button></>}</div>}
               {request.addressInstructions && <p className="mt-1 text-xs text-stone-500">Access note: {request.addressInstructions}</p>}
               {request.booking && ["CONFIRMED", "ASSIGNED"].includes(request.booking.status) && <div className="mt-4 border-t border-stone-100 pt-3">{confirmCancelId === request.id ? <div className="flex flex-wrap items-center gap-3 text-xs"><span className="text-stone-600">Cancel this booking? Work that has started can’t be cancelled here.</span><button className="font-semibold text-red-700 hover:underline disabled:opacity-50" disabled={cancellingId === request.id} onClick={() => onConfirmCancel(request.id)} type="button">{cancellingId === request.id ? "Cancelling..." : "Yes, cancel"}</button><button className="font-semibold text-stone-600 hover:underline" onClick={onKeepRequest} type="button">Keep booking</button></div> : <div className="flex flex-wrap gap-4"><button className="text-xs font-semibold text-stone-600 hover:text-emerald-900" onClick={() => setRescheduleId((current) => current === request.booking!.id ? "" : request.booking!.id)} type="button">{rescheduleId === request.booking.id ? "Close rescheduling" : "Reschedule booking"}</button><button className="text-xs font-semibold text-stone-500 hover:text-red-700" onClick={() => onRequestCancel(request.id)} type="button">Cancel booking</button></div>}</div>}
               {request.booking && rescheduleId === request.booking.id && ["CONFIRMED", "ASSIGNED"].includes(request.booking.status) && <RescheduleForm bookingId={request.booking.id} isSaving={reschedulingId === request.booking.id} onSubmit={onReschedule} onClose={() => setRescheduleId("")} />}
+              {request.booking?.status === "COMPLETED" && (request.booking.review ? <div className="mt-4 rounded-xl bg-emerald-50 px-4 py-3"><p className="text-xs font-semibold uppercase tracking-wide text-emerald-800">Your review · {request.booking.review.rating}/5</p><p className="mt-1 text-sm text-emerald-950">{request.booking.review.comment}</p><p className="mt-2 text-xs text-emerald-800">{request.booking.review.status === "PUBLISHED" ? "Published" : request.booking.review.status === "HIDDEN" ? "Not published" : "Awaiting review"}</p></div> : <ReviewForm bookingId={request.booking.id} isSaving={reviewingId === request.booking.id} onSubmit={onSubmitReview} />)}
               {["NEW", "REVIEWING", "CONTACTED"].includes(request.status) && <div className="mt-4 border-t border-stone-100 pt-3">{confirmCancelId === request.id ? <div className="flex flex-wrap items-center gap-3 text-xs"><span className="text-stone-600">Cancel this request?</span><button className="font-semibold text-red-700 hover:underline disabled:opacity-50" disabled={cancellingId === request.id} onClick={() => onConfirmCancel(request.id)} type="button">{cancellingId === request.id ? "Cancelling…" : "Yes, cancel"}</button><button className="font-semibold text-stone-600 hover:underline" onClick={onKeepRequest} type="button">Keep request</button></div> : <button className="text-xs font-semibold text-stone-500 hover:text-red-700" onClick={() => onRequestCancel(request.id)} type="button">Cancel request</button>}</div>}
             </article>
           ))}

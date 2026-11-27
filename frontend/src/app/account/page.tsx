@@ -9,9 +9,9 @@ export default function AccountPage() {
   const account = useAccount();
   const {
     user, requests, notifications, addresses, addressForm, form, isRegistering, isCheckingSession,
-    isSubmitting, isSavingAddress, removingAddressId, confirmCancelId, cancellingId, reschedulingId, payingId,
+    isSubmitting, isSavingAddress, removingAddressId, confirmCancelId, cancellingId, reschedulingId, payingId, reviewingId,
     error, setError, setIsRegistering, setConfirmCancelId, update, updateAddress,
-    submit, signOut, addAddress, removeAddress, cancelRequest, rescheduleBooking, startPayment, markNotificationRead,
+    submit, signOut, addAddress, removeAddress, cancelRequest, rescheduleBooking, startPayment, submitReview, markNotificationRead,
   } = account;
 
   return (
@@ -32,10 +32,12 @@ export default function AccountPage() {
                 cancellingId={cancellingId}
                 reschedulingId={reschedulingId}
                 payingId={payingId}
+                reviewingId={reviewingId}
                 onRequestCancel={setConfirmCancelId}
                 onConfirmCancel={(id) => void cancelRequest(id)}
                 onReschedule={rescheduleBooking}
                 onPay={(bookingId) => void startPayment(bookingId)}
+                onSubmitReview={(bookingId, rating, comment, displayName) => void submitReview(bookingId, rating, comment, displayName)}
                 onKeepRequest={() => setConfirmCancelId("")}
               />
               <NotificationInbox notifications={notifications} onRead={(id) => void markNotificationRead(id)} />
